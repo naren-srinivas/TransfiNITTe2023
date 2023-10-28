@@ -8,16 +8,27 @@ class ChatBot():
         self.empty = 0
         self.text = ''
         self.username = ''
-        self.iterations = []
+        self.onchecker = 0
+        self.language = 'en'
 
     def speech_to_text(self):
         recognizer = sr.Recognizer()
+        trans = Translator()
         with sr.Microphone() as mic:
             print("listening...")
             #recognizer.adjust_for_ambient_noise(mic)
-            audio = recognizer.listen(mic, 2, 5)
+            try :
+                audio = recognizer.listen(mic, 2, 5)
+            except : 
+                print('No signal')
         try:
-            self.text = recognizer.recognize_google(audio, language = "en-IN")
+            self.untranstext = recognizer.recognize_google(audio, language = self.language + "-IN")
+            if self.language in ('ta','hi'):
+                print(self.untranstext)
+                output = trans.translate(self.untranstext,src=self.language,dest = 'en')
+                self.text = output.text
+            else :
+                self.text = self.untranstext
             self.empty = 1
             print("me --> ", self.text) 
         except:
@@ -38,7 +49,7 @@ class ChatBot():
         return True if self.name in text.lower() else False
     
     def sleep(self, text):
-        return True if 'thank you bhai' in text.lower() else False
+        return True if ('thank you' or 'thanks' or 'thank') in text.lower() else False
 
     @staticmethod
     def action_time():
@@ -54,7 +65,24 @@ class ChatBot():
                 break
             else :
                 pass
-
+    def change_language(self) :
+        while True :
+            self.text_to_speech('Bhai, what is your preferred language')
+            self.speech_to_text()
+            if self.empty != 0 :
+                    if 'tamil' in self.text.lower() :
+                        self.language = 'ta'
+                    elif 'hindi' in self.text.lower() :
+                        self.language = 'hi'
+                    elif 'english' in self.text.lower() :
+                        self.language = 'en'
+                    else :
+                        self.text_to_speech('The language mentioned is not available')
+                        break
+                    self.text_to_speech('You can talk in your prefered language now bhai')
+                    break
+            else :
+                pass
 
 # Run the AI
 if __name__ == "__main__":
@@ -66,27 +94,36 @@ if __name__ == "__main__":
     while True:
         ai.speech_to_text()
 
-        ## wake up
-        if ai.sleep(ai.text) or (ai.text == ''):
+        if ai.onchecker > 2 :
+            ai.text_to_speech('Bhai, I am drowsy... Going to sleep')
+            break
+        elif ai.sleep(ai.text):
             res = 'Anything for you Bhai'
             ai.text_to_speech(res)
             break
-        elif ai.wake_up(ai.text) is True and ai.empty == 1:
+        elif ai.empty == 1:
             #res = "Arey Bhai, what can I do for you?"
         
             ## action time
             if "time" in ai.text:
                 res = ai.action_time()
+                ai.onchecker = 0
             
             ## respond politely
             elif any(i in ai.text for i in ["thank","thanks"]):
                 res = np.random.choice(["you're welcome!","anytime!","no problem!","cool!","I'm here if you need me!","peace out!"])
+                ai.onchecker = 0
             
             #username
-            elif 'username' in ai.text :
+            elif ('username' or 'user name') in ai.text.lower() :
                 ai.change_username()
-                ai.iterations.append(1)
+                ai.onchecker = 0
                 continue
+            elif 'change language' in ai.text.lower() :
+                ai.change_language()
+                ai.onchecker = 0
+                continue
+                
             ## conversation
             else:   
                 chat = nlp(transformers.Conversation(ai.text), pad_token_id=50256)
@@ -94,10 +131,14 @@ if __name__ == "__main__":
                 res = res[res.find(">> bot ")+6:].strip()
                 if 'assistant' in res :
                     res = res[res.find('assistant')+11:].strip()
+                    
 
             ai.text_to_speech(res)
-            ai.iterations.append(1)
+            ai.onchecker = 0
+
         
         else :
+            ai.onchecker += 1
             pass
+        print(ai.onchecker)
         
