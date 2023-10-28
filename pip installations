@@ -1,0 +1,8 @@
+pip install transformers datasets
+pip install tensorflow
+pip install SpeechRecognition
+pip install gTTS
+pip install PyAudio
+pip install jinja2
+pip install playsound  
+pip install pyttsx3
