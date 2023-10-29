@@ -7,17 +7,33 @@ class ChatBot():
         self.name = name
         self.empty = 0
         self.text = ''
+        self.res = ''
         self.username = ''
-        self.iterations = []
+        self.onchecker = 0
+        self.language = 'en'
+        self.waken = False
+        self.loopbreak = False
+        self.nlp = transformers.pipeline("conversational", model="microsoft/DialoGPT-medium")
+        os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
-    def speech_to_text(self):
+    def listen(self):
         recognizer = sr.Recognizer()
+        trans = Translator()
         with sr.Microphone() as mic:
             print("listening...")
             #recognizer.adjust_for_ambient_noise(mic)
-            audio = recognizer.listen(mic, 2, 5)
+            try :
+                audio = recognizer.listen(mic, 2, 5)
+            except : 
+                print('No signal')
         try:
-            self.text = recognizer.recognize_google(audio, language = "en-IN")
+            self.untranstext = recognizer.recognize_google(audio, language = self.language + "-IN")
+            if self.language in ('ta','hi'):
+                print(self.untranstext)
+                output = trans.translate(self.untranstext,src=self.language,dest = 'en')
+                self.text = output.text
+            else :
+                self.text = self.untranstext
             self.empty = 1
             print("me --> ", self.text) 
         except:
@@ -26,12 +42,21 @@ class ChatBot():
                 self.empty = 0
 
 
-    @staticmethod
-    def text_to_speech(text):
+    def speak(self,text):
         print("bhAI --> ", text)
         engine = pyttsx3.init()
         engine.say(text)
         engine.runAndWait()
+
+        '''file = "temp.mp3"
+        myobj = gTTS(text=text, lang=self.language, slow=False) 
+        myobj.save(file)
+
+        playsound(file)
+        print('playing sound using playsound')
+        time.sleep(5)
+        os.remove(file)'''
+
         
 
     def wake_up(self, text):
@@ -46,58 +71,141 @@ class ChatBot():
     
     def change_username(self) :
         while True :
-            self.text_to_speech('Bhai, tell your username')
-            self.speech_to_text()
+            self.res = 'Bhai, tell your username'
+            self.speak(self.res)
+            self.listen()
             if self.empty != 0 :
                 self.username = self.text 
-                self.text_to_speech('Welcome ' + self.username + ' Bhai')
+                self.res = 'Welcome ' + self.username + ' Bhai'
+                self.speak(self.res)
                 break
             else :
                 pass
+    def change_language(self) :
+        while True :
+            self.res = 'Bhai, what is your preferred language'
+            self.speak(self.res)
+            self.listen()
+            if self.empty != 0 :
+                    if 'tamil' in self.text.lower() :
+                        self.language = 'ta'
+                    elif 'hindi' in self.text.lower() :
+                        self.language = 'hi'
+                    elif 'english' in self.text.lower() :
+                        self.language = 'en'
+                    else :
+                        self.res = 'The language mentioned is not available'
+                        self.speak(self.res)
+                        continue
+                    self.res = 'You can talk in your prefered language now bhai'
+                    self.speak(self.res)
+                    break
+            else :
+                pass
+    def SpotiBhai(self, songName):
+            username = 'z6za498eyl7wcwpubtphuoxt3'
+            clientID = '07248fdd5d3e42a581d51bbbfbce4e24'
+            clientSecret = 'd5bb458e3909486283715cca2f21073b'
+            redirectURI = 'http://google.com/'
 
+            oauth_object = spotipy.SpotifyOAuth(clientID,clientSecret,redirectURI)
+            token_dict = oauth_object.get_access_token()
+            token = token_dict['access_token']
+            spotifyObject = spotipy.Spotify(auth=token)
+            user = spotifyObject.current_user()
+            # To print the response in readable format.
+            print(json.dumps(user,sort_keys=True, indent=4))
+
+            print("Welcome to the project, " + user['display_name']) 
+            results = spotifyObject.search(songName, 1, 0, "track") 
+            songs_dict = results['tracks'] 
+            song_items = songs_dict['items'] 
+            song = song_items[0]['external_urls']['spotify'] 
+            webbrowser.open(song) 
+            self.res = 'Song has opened in your browser.'
+            self.speak(self.res)
+
+    def initsession(self) :
+        self.listen()
+        if self.wake_up(self.text) :
+            self.waken = True
+            self.res = "Welcome Bhai, what can i call you"
+            self.speak(self.res)
+            while True :
+                self.listen()
+                if self.empty != 0 :
+                    self.username = self.text 
+                    self.res = 'Welcome ' + self.username
+                    self.speak(self.res)
+                    break
+               
+    def replyiter(self) :
+        self.listen()   
+
+        if self.onchecker > 2 :
+            self.res = 'Bhai, I am drowsy... Going to sleep'
+            self.speak(self.res)
+            self.loopbreak = True
+        elif self.sleep(self.text):
+            self.res = 'Anything for you Bhai'
+            self.speak(self.res)
+            self.loopbreak = True
+        elif self.empty == 1:
+        
+            ## action time
+            if "time " in self.text:
+                self.res = "The time now is " + self.action_time()
+                self.onchecker = 0
+            
+            ## respond politely
+            elif any(i in self.text for i in ["thank","thanks"]):
+                self.res = np.random.choice(["you're welcome!","anytime!","no problem!","cool!","I'm here if you need me!","peace out!"])
+                self.onchecker = 0
+            
+            #username
+            elif ('username' or 'user name') in self.text.lower() :
+                self.change_username()
+                self.onchecker = 0
+                
+            elif ('change' in self.text.lower() and 'language' in self.text.lower()) :
+                self.change_language()
+                self.onchecker = 0
+                
+            elif ("music" or "song" or "spotify") in self.text.lower():
+                self.res = "Which song do you want to play?"
+                self.speak(self.res)
+                while True :
+                    self.listen()
+                    if self.empty != 0 :
+                        self.SpotiBhai(self.text)
+                        break
+                    else :
+                        pass
+            ## conversation
+            else:   
+                chat = self.nlp(transformers.Conversation(self.text), pad_token_id=50256)
+                self.res = str(chat)
+                self.res = self.res[self.res.find(">> bot ")+6:].strip()
+                if 'assistant' in self.res :
+                    self.res = self.res[self.res.find('assistant')+11:].strip()
+                self.speak(self.res)
+                self.onchecker = 0
+
+        
+        else :
+            self.onchecker += 1
+            pass     
 
 # Run the AI
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     
     ai = ChatBot(name="bhai")
     nlp = transformers.pipeline("conversational", model="microsoft/DialoGPT-medium")
     os.environ["TOKENIZERS_PARALLELISM"] = "true"
+ 
+    ai.initsession()
 
-    while True:
-        ai.speech_to_text()
-
-        ## wake up
-        if ai.sleep(ai.text) or (ai.text == ''):
-            res = 'Anything for you Bhai'
-            ai.text_to_speech(res)
-            break
-        elif ai.wake_up(ai.text) is True and ai.empty == 1:
-            #res = "Arey Bhai, what can I do for you?"
+    while ai.waken:
+        ai.replyiter()'''
         
-            ## action time
-            if "time" in ai.text:
-                res = ai.action_time()
-            
-            ## respond politely
-            elif any(i in ai.text for i in ["thank","thanks"]):
-                res = np.random.choice(["you're welcome!","anytime!","no problem!","cool!","I'm here if you need me!","peace out!"])
-            
-            #username
-            elif 'username' in ai.text :
-                ai.change_username()
-                ai.iterations.append(1)
-                continue
-            ## conversation
-            else:   
-                chat = nlp(transformers.Conversation(ai.text), pad_token_id=50256)
-                res = str(chat)
-                res = res[res.find(">> bot ")+6:].strip()
-                if 'assistant' in res :
-                    res = res[res.find('assistant')+11:].strip()
-
-            ai.text_to_speech(res)
-            ai.iterations.append(1)
-        
-        else :
-            pass
         
